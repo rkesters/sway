@@ -8,6 +8,17 @@ import {
 import * as _ from "lodash";
 import { SwaggerApi } from "./types/api";
 import { Operation } from "./types/operation";
+import {
+  ServerResponseWrapper,
+  DocumentValidationFunction,
+  RequestValidationFunction,
+  ValidationResults,
+  ResponseValidationFunction,
+  StrictMode,
+  IncomingMessage,
+} from "./typedefs";
+import { Response } from "./types/response";
+import { Parameter } from "./types/parameter";
 
 export interface Results {
   errors: {
@@ -119,7 +130,10 @@ function findExtraParameters(
  * @param {string} name - The name of the format
  * @param {function} validator - The format validator *(See [ZSchema Custom Format](https://github.com/zaggino/z-schema#register-a-custom-format))*
  */
-export function registerFormat(name: string, validator: (value: any) => boolean) {
+export function registerFormat(
+  name: string,
+  validator: (value: any) => boolean
+) {
   ZSchema.registerFormat(name, validator);
 }
 
@@ -146,7 +160,7 @@ export function unregisterFormat(name: string) {
  *
  * @param {string} name - The name of the format generator
  */
-export function unregisterFormatGenerator(name:string) {
+export function unregisterFormatGenerator(name: string) {
   delete getJSONSchemaMocker().format()[name];
 }
 
@@ -195,7 +209,7 @@ function normalizeError(obj: any) {
  *
  * @returns {object} The computed schema
  */
-export function computeParameterSchema  (paramDef: Record<string,any>) {
+export function computeParameterSchema(paramDef: Record<string, any>) {
   var schema;
 
   if (_.isUndefined(paramDef.schema)) {
@@ -212,7 +226,7 @@ export function computeParameterSchema  (paramDef: Record<string,any>) {
   }
 
   return schema;
-};
+}
 
 /**
  * Converts a raw JavaScript value to a JSON Schema value based on its schema.
@@ -227,9 +241,9 @@ export function computeParameterSchema  (paramDef: Record<string,any>) {
  *
  * @throws {TypeError} IF the `collectionFormat` or `type` is invalid for the `schema`, or if conversion fails
  */
-export function convertValue  (
+export function convertValue(
   schema,
-  options: {collectionFormat: string, encoding: string},
+  options: { collectionFormat: string; encoding: string },
   value: any
 ) {
   var originalValue = value; // Used in error reporting for invalid values
@@ -419,7 +433,7 @@ export function convertValue  (
   }
 
   return value;
-};
+}
 
 /**
  * Returns the provided content type or `application/octet-stream` if one is not provided.
@@ -430,9 +444,9 @@ export function convertValue  (
  *
  * @returns {string} The content type
  */
-export function getContentType  (headers) {
+export function getContentType(headers) {
   return getHeaderValue(headers, "content-type") || "application/octet-stream";
-};
+}
 
 /**
  * Returns the header value regardless of the case of the provided/requested header name.
@@ -442,10 +456,7 @@ export function getContentType  (headers) {
  *
  * @returns {string} The header value or `undefined` if it is not found
  */
-export function getHeaderValue   (
-  headers,
-  headerName
-) {
+export function getHeaderValue(headers, headerName) {
   // Default to an empty object
   headers = headers || {};
 
@@ -455,7 +466,7 @@ export function getHeaderValue   (
   });
 
   return headers[realHeaderName];
-};
+}
 
 /**
  * Returns a json-schema-faker mocker.
@@ -463,7 +474,7 @@ export function getHeaderValue   (
  * @returns {object} The json-schema-faker mocker to use
  */
 
-export function getSample  (schema) {
+export function getSample(schema) {
   var sample;
 
   if (!_.isUndefined(schema)) {
@@ -475,16 +486,16 @@ export function getSample  (schema) {
   }
 
   return sample;
-};
+}
 
 /**
  * Returns a z-schema validator.
  *
  * @returns {object} The z-schema validator to use
  */
-export function getJSONSchemaValidator  () {
+export function getJSONSchemaValidator() {
   return jsonSchemaValidator;
-};
+}
 
 export const parameterLocations = [
   "body",
@@ -494,57 +505,141 @@ export const parameterLocations = [
   "query",
 ];
 
+function processDocumentValidators(
+  _target: any,
+  caller: SwaggerApi,
+  validators: DocumentValidationFunction[]
+) {
+  validators.reduce(
+    (acc, validator: DocumentValidationFunction) => {
+      const results = validator(caller);
+      if (!results) {
+        return acc;
+      }
+      return mergeValidationResults(acc, results);
+    },
+    { errors: [], warnings: [] } as ValidationResults
+  );
+}
+
+function processRequestValidators(
+  target: IncomingMessage,
+  caller: Operation,
+  validators: RequestValidationFunction[]
+) {
+  validators.reduce(
+    (acc, validator: RequestValidationFunction) => {
+      const results = validator(target, caller);
+      if (!results) {
+        return acc;
+      }
+      return mergeValidationResults(acc, results);
+    },
+    { errors: [], warnings: [] } as ValidationResults
+  );
+}
+function processResponseValidators(
+  target: ServerResponseWrapper,
+  caller: Response,
+  validators: ResponseValidationFunction[]
+) {
+  validators.reduce(
+    (acc, validator: ResponseValidationFunction) => {
+      const results = validator(target, caller);
+      if (!results) {
+        return acc;
+      }
+      return mergeValidationResults(acc, results);
+    },
+    { errors: [], warnings: [] } as ValidationResults
+  );
+}
+
+function mergeValidationResults(that, results): ValidationResults {
+  if (!_.isEmpty(results.errors)) {
+    that.errors = [...that.errors, ...results.errors];
+  }
+
+  if (!_.isEmpty(results.warnings)) {
+    that.warnings = [...that.warnings, ...results.warnings];
+  }
+  return that;
+}
+
 /**
  * Process validators.
  *
- * @param {object|module:Sway~ServerResponseWrapper} target - The thing being validated
- * @param {module:Sway~SwaggerApi|module:Sway~Operation|module:Sway~Response} caller - The object requesting validation _(can be `undefined`)_
- * @param {module:Sway~DocumentValidationFunction[]|module:Sway~RequestValidationFunction[]|module:Sway~ResposeValidationFunction[]} validators - The validators
- * @param {module:Sway~ValidationResults} results - The cumulative validation results
+ * @param target - The thing being validated
+ * @param caller - The object requesting validation _(can be `undefined`)_
+ * @param validators - The validators
+ * @param results - The cumulative validation results
  */
-export function processValidators  (
-  target:ServerResponseWrapper,
-  caller: SwaggerApi| Operation| Response,
-  validators: DocumentValidationFunction[]|RequestValidationFunction[]|ResposeValidationFunction[],
-  results:ValidationResults
+export function processValidators(
+  target: undefined,
+  caller: SwaggerApi,
+  validators: DocumentValidationFunction[],
+  results: ValidationResults
+);
+export function processValidators(
+  target: ServerResponseWrapper,
+  caller: Response,
+  validators: ResponseValidationFunction[],
+  results: ValidationResults
+);
+export function processValidators(
+  target: IncomingMessage,
+  caller: Operation,
+  validators: RequestValidationFunction[],
+  results: ValidationResults
+);
+export function processValidators(
+  target: ServerResponseWrapper | IncomingMessage | undefined,
+  caller: SwaggerApi | Operation | Response,
+  validators:
+    | DocumentValidationFunction[]
+    | RequestValidationFunction[]
+    | ResponseValidationFunction[],
+  results: ValidationResults
 ) {
-  _.each(validators, function (validator) {
-    var vArgs = [target];
-    var vResults;
+  if (SwaggerApi.isa(caller)) {
+    const out = processDocumentValidators(
+      undefined,
+      caller,
+      validators as DocumentValidationFunction[]
+    );
+    return mergeValidationResults(results, out);
+  }
 
-    if (!_.isUndefined(caller)) {
-      vArgs.push(caller);
-    }
+  if (Operation.isOperation(caller)) {
+    const out = processRequestValidators(
+      target as IncomingMessage ,
+      caller,
+      validators as RequestValidationFunction[]
+    );
+    return mergeValidationResults(results, out);
+  }
 
-    vResults = validator.apply(undefined, vArgs);
-
-    if (!_.isUndefined(vResults)) {
-      if (!_.isUndefined(vResults.errors) && vResults.errors.length > 0) {
-        results.errors.push.apply(results.errors, vResults.errors);
-      }
-
-      if (!_.isUndefined(vResults.warnings) && vResults.warnings.length > 0) {
-        results.warnings.push.apply(results.warnings, vResults.warnings);
-      }
-    }
-  });
-};
-
+  const out = processResponseValidators(
+    target as ServerResponseWrapper,
+    caller,
+    validators as ResponseValidationFunction[]
+  );
+  return mergeValidationResults(results, out);
+}
 
 /**
  * Replaces the circular references in the provided object with an empty object.
  *
  * @param {object} obj - The JavaScript object
  */
-export function removeCirculars  (obj) {
+export function removeCirculars(obj) {
   walk(obj, function (node, path, ancestors) {
     // Replace circulars with {}
     if (ancestors.indexOf(node) > -1) {
       _.set(obj, path, {});
     }
   });
-};
-
+}
 
 /**
  * Validates the provided value against the JSON Schema by name or value.
@@ -555,7 +650,7 @@ export function removeCirculars  (obj) {
  *
  * @returns {object} Object containing the errors and warnings of the validation
  */
-export function validateAgainstSchema  (validator, schema, value) {
+export function validateAgainstSchema(validator, schema, value) {
   schema = _.cloneDeep(schema); // Clone the schema as z-schema alters the provided document
 
   var response = {
@@ -572,7 +667,7 @@ export function validateAgainstSchema  (validator, schema, value) {
   }
 
   return response;
-};
+}
 
 /**
  * Validates the content type.
@@ -581,11 +676,7 @@ export function validateAgainstSchema  (validator, schema, value) {
  * @param {string[]} supportedTypes - The supported (declared) Content-Type values for the request/response
  * @param {object} results - The results object to update in the event of an invalid content type
  */
-export function validateContentType  (
-  contentType,
-  supportedTypes,
-  results
-) {
+export function validateContentType(contentType, supportedTypes, results) {
   var rawContentType = contentType;
 
   if (!_.isUndefined(contentType)) {
@@ -608,7 +699,7 @@ export function validateContentType  (
       path: [],
     });
   }
-};
+}
 
 /**
  * Walk an object and invoke the provided function for each node.
@@ -616,7 +707,7 @@ export function validateContentType  (
  * @param {*} obj - The object to walk
  * @param {function} [fn] - The function to invoke
  */
-export function walk  (obj: any , fn: Function) {
+export function walk(obj: any, fn: Function) {
   var callFn = _.isFunction(fn);
 
   function doWalk(ancestors, node, path) {
@@ -639,7 +730,7 @@ export function walk  (obj: any , fn: Function) {
   }
 
   doWalk([], obj, []);
-};
+}
 
 /**
  * Validates that each item in the array are of type function.
@@ -647,7 +738,7 @@ export function walk  (obj: any , fn: Function) {
  * @param {array} arr - The array
  * @param {string} paramName - The parameter name
  */
-export function validateOptionsAllAreFunctions  (arr: any[], paramName: string) {
+export function validateOptionsAllAreFunctions(arr: any[], paramName: string) {
   _.forEach(arr, function (item, index) {
     if (!_.isFunction(item)) {
       throw new TypeError(
@@ -655,7 +746,7 @@ export function validateOptionsAllAreFunctions  (arr: any[], paramName: string) 
       );
     }
   });
-};
+}
 
 /**
  * Validates the request/response strictly based on the provided options.
@@ -669,10 +760,10 @@ export function validateOptionsAllAreFunctions  (arr: any[], paramName: string) 
  * @param {boolean} options.query - Whether or not query parameters should be validated strictly
  * @param {module:Sway~ValidationResults} results - The validation results
  */
-export function validateStrictMode  (
+export function validateStrictMode(
   opOrRes: Operation | Response,
-  reqOrRes: ServerResponseWrapper | object,
-  strictMode: {formData: boolean, header: boolean, query: boolean},
+  reqOrRes: ServerResponseWrapper | IncomingMessage ,
+  strictMode: StrictMode | undefined,
   results: ValidationResults
 ) {
   var definedParameters = {
@@ -690,7 +781,9 @@ export function validateStrictMode  (
   if (!_.isUndefined(strictMode)) {
     if (!_.isBoolean(strictMode) && !_.isPlainObject(strictMode)) {
       throw new TypeError("options.strictMode must be a boolean or an object");
-    } else if (_.isPlainObject(strictMode)) {
+    }
+
+    if (!_.isBoolean(strictMode) ) {
       _.each(["formData", "header", "query"], function (location) {
         if (!_.isUndefined(strictMode[location])) {
           if (!_.isBoolean(strictMode[location])) {
@@ -716,8 +809,8 @@ export function validateStrictMode  (
     strictModeValidation.query === true
   ) {
     _.each(
-      (mode === "req" ? opOrRes : opOrRes.operationObject).getParameters(),
-      function (parameter) {
+      (Operation.isOperation(opOrRes) ? opOrRes : opOrRes.operationObject).getParameters(),
+      function (parameter: Parameter) {
         if (_.isArray(definedParameters[parameter.in])) {
           definedParameters[parameter.in].push(parameter.name);
         }
@@ -754,4 +847,4 @@ export function validateStrictMode  (
       results
     );
   }
-};
+}

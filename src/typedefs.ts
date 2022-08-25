@@ -2,37 +2,52 @@ import { OpenAPI, OpenAPIV3_1, OpenAPIV3, OpenAPIV2 } from "openapi-types";
 import { SwaggerApi } from "./types/api";
 import { Operation } from "./types/operation";
 import { SchemaErrorDetail } from "z-schema";
-import { OutgoingHttpHeader, IncomingMessage } from "http";
+import http from "http";
 import { JsonRefsOptions } from "json-refs";
+import { Response } from "./types/response";
+import cnt from 'connect';
+
+
+export class  IncomingMessage  extends cnt.IncomingMessage {
+  body: any;
+  files: any;
+}
 
 export type DocumentValidationFunction = (api: SwaggerApi) => ValidationResults;
 export type ResponseDef =
   | OpenAPIV3_1.ResponseObject
   | OpenAPIV3.ResponseObject
   | OpenAPIV2.ResponseObject;
-export type RequestValidationFunction = (
+
+export type ResponseValidationFunction = (
   res: ServerResponseWrapper,
-  def: ResponseDef
+  def: Response
 ) => ValidationResults;
+
+export type RequestValidationFunction  = (
+  req: IncomingMessage,
+  op: Operation
+) => ValidationResults;
+
+
 export type StrictMode =
   | boolean
   | { formData: boolean; header: boolean; query: boolean };
 export interface RequestValidationOptions {
   strictMode: StrictMode;
-  customValidators: RequestValidationFunction;
+  customValidators: RequestValidationFunction[];
 }
 
-type ResponseValidationFunction = (
-  req: IncomingMessage,
-  op: Operation
-) => ValidationResults;
+
 
 export interface ServerResponseWrapper<BODY = any> {
   body: BODY;
   encoding: string;
-  headers: OutgoingHttpHeader;
+  headers:http.OutgoingHttpHeader;
   statusCode: number | string;
 }
+
+
 
 /**
  * Validation error/warning object.

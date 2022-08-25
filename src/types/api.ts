@@ -1,6 +1,7 @@
 import debug from "debug";
 import _ from "lodash";
 import { OpenAPI, OpenAPIV2, OpenAPIV3, OpenAPIV3_1 } from "openapi-types";
+import { Path } from "./path";
 
 export function isOpenApi31(doc: OpenAPI.Document): doc is OpenAPIV3_1.Document {
   if (!isOpenApi3X(doc)) {
@@ -29,6 +30,11 @@ export function isOpenApi2X(doc: OpenAPI.Document): doc is OpenAPIV2.Document {
 }
 
 export class SwaggerApi {
+
+  static isa(value: unknown): value is SwaggerApi {
+    return value instanceof SwaggerApi;
+  }
+
   definition: OpenAPI.Document;
   definitionRemotesResolved: object;
   definitionFullyResolved: OpenAPI.Document;
@@ -39,7 +45,7 @@ export class SwaggerApi {
 
   customValidators: object;
   documentationUrl: string;
-  pathObjects: sway.Path[];
+  pathObjects: Path[];
 
   #debug: debug.Debugger;
 
@@ -82,7 +88,7 @@ export class SwaggerApi {
   }
 
 
-  public get path(): Path {
+  public get path(): OpenAPI.Document['paths'] {
     return this.definition.paths
   }
 }
