@@ -22,40 +22,26 @@
  * THE SOFTWARE.
  */
 
-"use strict";
+import * as _ from "lodash";
 
-var _ = require("lodash");
-var Base64 = require("js-base64");
-
-// Due to the differences in how node.js and the browser use js-base64, we need this hack
-if (typeof Base64.Base64 !== "undefined") {
-  Base64 = Base64.Base64;
+function returnTrue() {
+  return true;
 }
 
-/**
- * We have to filter the schema to avoid a maximum callstack issue by deleting the format property.
- *
- * @param {object} schema - The JSON Schema object
- *
- * @returns {object} The filtered schema
- */
-function filterSchema(schema) {
-  var cSchema = _.cloneDeep(schema);
-
-  delete cSchema.format;
-
-  return cSchema;
+export function int32(val) {
+  // z-schema seems to continue processing the format even when the type is known to be invalid so we must do a type
+  // check prior to validating this format.
+  return _.isNumber(val) && val % 1 === 0;
+}
+export function int64(val) {
+  // z-schema seems to continue processing the format even when the type is known to be invalid so we must do a type
+  // check prior to validating this format.
+  return _.isNumber(val) && val % 1 === 0;
 }
 
-// Build the list of custom JSON Schema generator formats
-module.exports.byte = function (mocker) {
-  return function (schema) {
-    return Base64.encode(mocker.generate(filterSchema(schema)));
-  };
-};
-
-module.exports.password = function (mocker) {
-  return function (schema) {
-    return mocker.generate(filterSchema(schema));
-  };
-};
+// These format validators will always return 'true' because they are already type valid and there are no constraints
+// on the format that would produce an invalid value.
+export const byte = returnTrue;
+export const double = returnTrue;
+export const float = returnTrue;
+export const password = returnTrue;

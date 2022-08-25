@@ -22,15 +22,12 @@
  * THE SOFTWARE.
  */
 
-"use strict";
+import * as _ from "lodash";
+import Base64 from "js-base64";
+import jsfdeped from "json-schema-faker";
 
-var _ = require("lodash");
-var Base64 = require("js-base64");
-
-// Due to the differences in how node.js and the browser use js-base64, we need this hack
-if (typeof Base64.Base64 !== "undefined") {
-  Base64 = Base64.Base64;
-}
+export const jsf = jsfdeped.generate;
+export type Faker = typeof jsf;
 
 /**
  * We have to filter the schema to avoid a maximum callstack issue by deleting the format property.
@@ -39,7 +36,7 @@ if (typeof Base64.Base64 !== "undefined") {
  *
  * @returns {object} The filtered schema
  */
-function filterSchema(schema) {
+function filterSchema(schema: any) {
   var cSchema = _.cloneDeep(schema);
 
   delete cSchema.format;
@@ -48,14 +45,18 @@ function filterSchema(schema) {
 }
 
 // Build the list of custom JSON Schema generator formats
-module.exports.byte = function (mocker) {
-  return function (schema) {
-    return Base64.encode(mocker.generate(filterSchema(schema)));
+ function byte(mocker: Faker) {
+  return function (schema: any) {
+    return Base64.encode( mocker(filterSchema(schema)));
   };
-};
+}
 
-module.exports.password = function (mocker) {
-  return function (schema) {
-    return mocker.generate(filterSchema(schema));
+ function password(mocker: Faker) {
+  return function (schema: any) {
+    return mocker(filterSchema(schema));
   };
-};
+}
+
+export const generators = {
+  password,byte
+}
