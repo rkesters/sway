@@ -1,9 +1,9 @@
 import { Path } from "./path";
 import { OpenAPI , OpenAPIV2, OpenAPIV3 } from "openapi-types";
-import JsonRefs from "json-refs";
+import JsonRefs from "@rkesters/json-refs";
 import _ from "lodash";
 import { Operation } from "./operation";
-import { getHeaderValue, getSample, parameterLocations } from "../helpers";
+import { computeParameterSchema, getHeaderValue, getSample, parameterLocations } from "../helpers";
 import { IncomingMessage } from "../typedefs";
 
 type OpenParameter = OpenAPI.Parameter ;
@@ -40,7 +40,7 @@ export class Parameter implements OpenAPIV2.ParameterObject  {
     _.assign(this, definitionFullyResolved);
 
     if (_.isUndefined(this.schema)) {
-      this.schema = helpers.computeParameterSchema(definitionFullyResolved);
+      this.schema = computeParameterSchema(definitionFullyResolved);
     }
 
     this.pathObject.api._debug(

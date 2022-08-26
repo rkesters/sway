@@ -1,5 +1,5 @@
 import { Path } from "./path";
-import JsonRefs from "json-refs";
+import JsonRefs from "@rkesters/json-refs";
 import { OpenAPI, OpenAPIV2, OpenAPIV3, OpenAPIV3_1 } from "openapi-types";
 import _, { isObjectLike, isPlainObject } from "lodash";
 import { Parameter } from "./parameter";
@@ -12,7 +12,9 @@ function isObject(value: unknown): value is object {
   return isPlainObject(value);
 }
 
-export class Operation {
+export class Operation implements OpenAPIV3.OperationObject {
+
+
   static isOperation(value: unknown): value is Operation {
     if (!isObject(value)) return false;
 
@@ -30,6 +32,8 @@ export class Operation {
   responseObjects: Response[];
   securityDefinitions: any;
   security: any;
+
+  tags: string[];
 
   #debug: debug.Debugger;
   #seenParameters: string[] = [];

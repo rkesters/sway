@@ -3,7 +3,7 @@ import { SwaggerApi } from "./types/api";
 import { Operation } from "./types/operation";
 import { SchemaErrorDetail } from "z-schema";
 import http from "http";
-import { JsonRefsOptions } from "json-refs";
+import { JsonRefsOptions } from "@rkesters/json-refs";
 import { Response } from "./types/response";
 import cnt from 'connect';
 
@@ -11,6 +11,8 @@ import cnt from 'connect';
 export class  IncomingMessage  extends cnt.IncomingMessage {
   body: any;
   files: any;
+  query: string;
+  headers: Record<string,any>
 }
 
 export type DocumentValidationFunction = (api: SwaggerApi) => ValidationResults;
@@ -45,6 +47,7 @@ export interface ServerResponseWrapper<BODY = any> {
   encoding: string;
   headers:http.OutgoingHttpHeader;
   statusCode: number | string;
+  query: string;
 }
 
 
@@ -52,11 +55,13 @@ export interface ServerResponseWrapper<BODY = any> {
 /**
  * Validation error/warning object.
  *
- * When this object is created as a result of JSON Schema validation, this object is created by
- * [z-schema](https://github.com/zaggino/z-schema) and it owns the structure so there can be extra properties not
+ * When this object is created as a result of JSON Schema validation,
+ * this object is created by
+ * [z-schema](https://github.com/zaggino/z-schema) and it owns the
+ * structure so there can be extra properties not
  * documented below.
  */
-export type ValidationEntry = SchemaErrorDetail;
+export type ValidationEntry = Partial<SchemaErrorDetail>;
 
 /** Validation results object. */
 export interface ValidationResults {

@@ -1,6 +1,6 @@
 import { OpenAPI } from "openapi-types";
 import { Operation } from "./operation";
-import JsonRefs from "json-refs";
+import JsonRefs from "@rkesters/json-refs";
 import _ from "lodash";
 import YAML from "js-yaml";
 import {

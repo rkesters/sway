@@ -94,10 +94,10 @@ function createJSONMocker(mocker: Faker) {
 }
 
 function findExtraParameters(
-  expected: string,
-  actual: string,
+  expected: string[],
+  actual: string[],
   location: string,
-  results: Results
+  results: ValidationResults
 ) {
   var codeSuffix = location.toUpperCase();
 
@@ -118,7 +118,7 @@ function findExtraParameters(
       results.errors.push({
         code: "REQUEST_ADDITIONAL_" + codeSuffix,
         message: "Additional " + location + " not allowed: " + name,
-        path: [],
+        path: '',
       });
     }
   });

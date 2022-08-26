@@ -3,8 +3,12 @@ import { OpenAPI, OpenAPIV2, OpenAPIV3, OpenAPIV3_1 } from "openapi-types";
 import _ from "lodash";
 import JsonRefs from "json-refs";
 import { pathToRegexp } from "path-to-regexp";
+import { Parameter } from "./parameter";
+import { Operation } from "./operation";
 
 export class Path {
+
+  
   #basePathPrefix: string;
   #sanitizedPath: any;
 
@@ -19,6 +23,7 @@ export class Path {
   #debug:   debug.Debugger;
 
   parameterObjects: Parameter[];
+  operationObjects: Operation[];
 
   constructor(
     api: SwaggerApi,
@@ -65,27 +70,50 @@ export class Path {
     this.parameterObjects = _.map(definitionFullyResolved.parameters, function (paramDef, index) {
       var pPath = pathToDefinition.concat(['parameters', index.toString()]);
 
-      return new Parameter(that,
+      return new Parameter(this,
                            _.get(api.definitionRemotesResolved, pPath),
                            paramDef,
                            pPath);
     });
   }
+  [pattern: string]: { $ref?: string; summary?: string; description?: string; servers?: OpenAPIV3.ServerObject[]; parameters?: (OpenAPIV3.ReferenceObject | OpenAPIV3.ParameterObject)[]; } & { ...; };
 
   /**
    * Return the operation for this path and operation id or method.
    *
-   * @param {string} idOrMethod - The operation id or method
+   * @param idOrMethod - The operation id or method
    *
-   * @returns {module:sway.Operation[]} The `Operation` objects for this path and method or `undefined` if there is no
+   * @returns  The `Operation` objects for this path and method or `undefined` if there is no
    * operation for the provided method
    */
-  public getOperation (idOrMethod: string):Operation[] {
-    return _.find(this.#definition. .operationObjects, function (operationObject) {
+  public getOperation (idOrMethod: string):Operation {
+    return _.find(this.operationObjects, function (operationObject) {
       return (
         operationObject.operationId === idOrMethod ||
         operationObject.method === idOrMethod.toLowerCase()
       );
     });
   };
+
+  /**
+ * Return the operations for this path and tag.
+ *
+ * @param tag - The tag
+ *
+ * @returns The `Operation` objects for this path and tag
+ */
+getOperationsByTag  (tag: string):Operation[] {
+  return _.filter(this.operationObjects, function (operationObject) {
+    return _.includes(operationObject.tags, tag);
+  });
+};
+
+/**
+ * Return the parameters for this path.
+ *
+ * @returns   The `Parameter` objects for this path
+ */
+getParameters  ():Parameter[] {
+  return this.parameterObjects;
+};
 }
