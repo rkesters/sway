@@ -7,9 +7,20 @@
 import _ from "lodash";
 import { removeCirculars, validateOptionsAllAreFunctions } from "./helpers";
 import { CreateOptions } from "./typedefs";
-import { SwaggerApi } from "./types/api";
+import { SwaggerApi } from "./types/v2/api";
 import YAML from "js-yaml";
-import JsonRefs from "@rkesters/json-refs";
+import JsonRefs, {
+  GeneralDocument,
+  JsonRefsOptions,
+  ResolvedRefDetails,
+} from "@rkesters/json-refs";
+import {
+  isLoadOptions,
+  LoadOptions,
+  LoadOptionsBase,
+  ProcessResponseCallback,
+} from "@rkesters/path-loader";
+import { OpenAPI, OpenAPIV3_1, OpenAPIV3, OpenAPIV2 } from "openapi-types";
 
 function validateCreateOptions(options: CreateOptions): void | never {
   if (_.isUndefined(options)) {
@@ -55,10 +66,25 @@ function validateCreateOptions(options: CreateOptions): void | never {
   validateOptionsAllAreFunctions(options.customValidators, "customValidators");
 }
 
-async function resolveDefintion(cOptions: CreateOptions) {
+function addDefaultProcessContent(
+  opts: LoadOptionsBase
+): LoadOptions<OpenAPI.Document> {
+  (opts as LoadOptions<OpenAPI.Document>).processContent = <
+    ProcessResponseCallback<OpenAPI.Document>
+  >function (res, cb) {
+    cb(undefined, YAML.load(res.text) as OpenAPI.Document);
+  };
+  return opts as LoadOptions<OpenAPI.Document>;
+}
+async function resolveDefintion(
+  cOptions: CreateOptions
+): Promise<
+  | JsonRefs.ResolvedRefsResults
+  | JsonRefs.RetrievedResolvedRefsResults
+> {
   // Prepare the json-refs options
   if (_.isUndefined(cOptions.jsonRefs)) {
-    cOptions.jsonRefs = {};
+    cOptions.jsonRefs = {} as JsonRefsOptions;
   }
 
   // Include invalid reference information
@@ -68,24 +94,69 @@ async function resolveDefintion(cOptions: CreateOptions) {
   cOptions.jsonRefs.filter = ["relative", "remote"];
 
   // Update the json-refs options to process YAML
-  if (_.isUndefined(cOptions.jsonRefs.loaderOptions)) {
-    cOptions.jsonRefs.loaderOptions = {};
-  }
-  cOptions.jsonRefs.loaderOptions = cOptions.jsonRefs.loaderOptions ?? {};
-
-  if (_.isUndefined(cOptions.jsonRefs.loaderOptions.processContent)) {
-    cOptions.jsonRefs.loaderOptions.processContent = function (res, cb) {
-      cb(undefined, YAML.safeLoad(res.text));
-    };
-  }
+  cOptions.jsonRefs.loaderOptions = isLoadOptions(
+    cOptions.jsonRefs.loaderOptions
+  )
+    ? cOptions.jsonRefs.loaderOptions
+    : addDefaultProcessContent(cOptions.jsonRefs.loaderOptions);
 
   // Call the appropriate json-refs API
   if (_.isString(cOptions.definition)) {
-    return JsonRefs.resolveRefsAt(cOptions.definition, cOptions.jsonRefs);
+    return JsonRefs.resolveRefsAt(
+      cOptions.definition,
+      cOptions.jsonRefs
+    );
   } else {
-    return JsonRefs.resolveRefs(cOptions.definition, cOptions.jsonRefs);
+    return JsonRefs.resolveRefs(cOptions.definition as unknown as GeneralDocument, cOptions.jsonRefs);
   }
 }
+
+async function resolveLocal(
+  cOptions: CreateOptions,
+  remoteResults:
+    | JsonRefs.RetrievedResolvedRefsResults
+    | JsonRefs.ResolvedRefsResults
+): Promise<ResolveLocalResults> {
+  // Resolve local references (Remote references should had already been resolved)
+  cOptions.jsonRefs.filter = "local";
+
+  return JsonRefs.resolveRefs(
+    (remoteResults as JsonRefs.RetrievedResolvedRefsResults).value ?? (cOptions.definition as unknown as GeneralDocument),
+    cOptions.jsonRefs
+  ).then(function (results) {
+    _.each(
+      remoteResults.refs,
+      function (refDetails: ResolvedRefDetails, refPtr) {
+        results.refs[refPtr] = refDetails;
+      }
+    );
+
+    return {
+      // The original Swagger definition
+      definition: (_.isString(cOptions.definition)
+        ? (remoteResults as JsonRefs.RetrievedResolvedRefsResults).value
+        : cOptions.definition) as OpenAPI.Document,
+      // The original Swagger definition with its remote references resolved
+      definitionRemotesResolved: remoteResults.resolved,
+      // The original Swagger definition with all its references resolved
+      definitionFullyResolved: results.resolved,
+      // Merge the local reference details with the remote reference details
+      refs: results.refs,
+    };
+  });
+}
+
+export interface ResolveLocalResults {
+  // The original Swagger definition
+  definition: OpenAPI.Document;
+  // The original Swagger definition with its remote references resolved
+  definitionRemotesResolved: Record<string, JsonRefs.ResolvedRefDetails>;
+  // The original Swagger definition with all its references resolved
+  definitionFullyResolved: Record<string, JsonRefs.ResolvedRefDetails>;
+  // Merge the local reference details with the remote reference details
+  refs: Record<string, JsonRefs.UnresolvedRefDetails>;
+};
+
 /**
  * Creates a SwaggerApi object from its Swagger definition(s).
  *
@@ -105,7 +176,9 @@ export async function create(options: CreateOptions): Promise<SwaggerApi> {
   var cOptions;
 
   // Validate arguments
-  const allTasks = await Promise.all([validateCreateOptions]);
+  let allTasks: Promise<any> = Promise.resolve();
+
+  validateCreateOptions(options);
 
   // Make a copy of the input options so as not to alter them
   cOptions = _.cloneDeep(options);
@@ -113,33 +186,13 @@ export async function create(options: CreateOptions): Promise<SwaggerApi> {
   //
   allTasks = allTasks
     // Resolve relative/remote references
-    .then(function () {})
+    .then(function () {
+      return resolveDefintion(cOptions);
+    })
     // Resolve local references and merge results
     .then(function (remoteResults) {
       // Resolve local references (Remote references should had already been resolved)
-      cOptions.jsonRefs.filter = "local";
-
-      return JsonRefs.resolveRefs(
-        remoteResults.resolved || cOptions.definition,
-        cOptions.jsonRefs
-      ).then(function (results) {
-        _.each(remoteResults.refs, function (refDetails, refPtr) {
-          results.refs[refPtr] = refDetails;
-        });
-
-        return {
-          // The original Swagger definition
-          definition: _.isString(cOptions.definition)
-            ? remoteResults.value
-            : cOptions.definition,
-          // The original Swagger definition with its remote references resolved
-          definitionRemotesResolved: remoteResults.resolved,
-          // The original Swagger definition with all its references resolved
-          definitionFullyResolved: results.resolved,
-          // Merge the local reference details with the remote reference details
-          refs: results.refs,
-        };
-      });
+      return resolveLocal(cOptions, remoteResults);
     })
     // Process the Swagger document and return the API
     .then(function (results) {

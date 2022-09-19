@@ -6,7 +6,7 @@
   "types": "index.d.ts",
   "scripts": {
     "gulp": "gulp",
-    "test": "gulp test"
+    "test": "npx gulp test"
   },
   "keywords": [
     "api",
@@ -33,40 +33,51 @@
     "index.js",
     "lib"
   ],
+  "prettier": {
+    "tabWidth": 4,
+    "singleQuote": true,
+    "printWidth": 100,
+    "bracketSpacing": true
+  },
   "devDependencies": {
     "@babel/core": "^7.2.2",
     "@babel/preset-env": "^7.2.3",
     "@otris/jsdoc-tsd": "^2.0.11",
     "@types/body-parser": "^1.19.2",
+    "@types/connect": "^3.4.35",
     "@types/debug": "^4.1.7",
+    "@types/js-yaml": "^4.0.5",
     "@types/lodash": "^4.14.184",
+    "@types/mocha": "^9.1.1",
+    "@types/node": "^18.7.16",
     "@types/z-schema": "^3.24.0",
     "babel-loader": "^8.0.5",
     "body-parser": "^1.20.0",
     "brfs": "^2.0.2",
     "connect": "^3.7.0",
     "del": "^7.0.0",
+    "eslint-config-prettier": "^8.5.0",
     "glob": "^8.0.3",
     "karma": "^6.4.0",
     "karma-chrome-launcher": "^3.1.1",
     "karma-mocha": "^2.0.1",
     "karma-mocha-reporter": "^2.2.5",
-    "karma-webpack": "^4.0.2",
+    "karma-webpack": "^5.0.0",
     "mocha": "^10.0.0",
     "openapi-types": "^12.0.0",
+    "prettier": "^2.7.1",
     "run-sequence": "^2.2.1",
     "transform-loader": "^0.2.4",
-    "webpack": "^4.44.2"
+    "ts-node": "^10.9.1",
+    "webpack": "^5.74.0"
   },
   "dependencies": {
     "@ngneat/falso": "^6.1.0",
-    "@types/connect": "^3.4.35",
-    "@types/node": "^18.7.13",
+    "@rkesters/json-refs": "^4.0.0",
     "debug": "^4.3.4",
     "faker": "^5.5.3",
     "js-base64": "^3.7.2",
     "js-yaml": "^4.1.0",
-    "@rkesters/json-refs": "^3.0.17",
     "json-schema-faker": "^0.5.0-rcv.44",
     "lodash": "^4.17.21",
     "native-promise-only": "^0.8.1",

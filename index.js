@@ -62,7 +62,8 @@ module.exports.create = function (options) {
   var cOptions;
 
   // Validate arguments
-  allTasks = allTasks.then(function () {
+  allTasks = allTasks
+  .then(function () {
     return new Promise(function (resolve) {
       if (_.isUndefined(options)) {
         throw new TypeError('options is required');

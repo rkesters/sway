@@ -24,10 +24,12 @@
 
 import * as _ from "lodash";
 import Base64 from "js-base64";
-import jsfdeped from "json-schema-faker";
+import jsfdeped, { Schema } from "json-schema-faker";
 
-export const jsf = jsfdeped.generate;
-export type Faker = typeof jsf;
+export const jsf = jsfdeped.format;
+export const faker = jsfdeped;
+export type Faker = typeof faker
+export type Generate = typeof jsfdeped.generate;
 
 /**
  * We have to filter the schema to avoid a maximum callstack issue by deleting the format property.
@@ -36,7 +38,7 @@ export type Faker = typeof jsf;
  *
  * @returns {object} The filtered schema
  */
-function filterSchema(schema: any) {
+function filterSchema(schema: Schema): Schema {
   var cSchema = _.cloneDeep(schema);
 
   delete cSchema.format;
@@ -45,14 +47,15 @@ function filterSchema(schema: any) {
 }
 
 // Build the list of custom JSON Schema generator formats
- function byte(mocker: Faker) {
-  return function (schema: any) {
-    return Base64.encode( mocker(filterSchema(schema)));
+ function byte(mocker: Generate) {
+  return function (schema: Schema) {
+    const value = mocker(filterSchema(schema));
+    return Base64.encode( (value ?? '').toString());
   };
 }
 
- function password(mocker: Faker) {
-  return function (schema: any) {
+ function password(mocker: Generate) {
+  return function (schema: Schema) {
     return mocker(filterSchema(schema));
   };
 }
